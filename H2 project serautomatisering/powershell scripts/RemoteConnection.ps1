@@ -4,15 +4,22 @@ function GetUsersFromCSV{
 
     $ADUsers = Import-Csv "C:\Users\krizo\Serverautomatisering\testemployees1.CSV" -Delimiter ";"
     $UPN = "Markus.ninja"
-    $ADPath = ",OU=Dystopian Tech,DC=Markus,DC=ninja";
+    $ADPath = "OU=Dystopian Tech,DC=Markus,DC=ninja";
 
     foreach ($User in $ADUsers) {
         try {
             $ADUserPath = "$($User.ou)$($ADPath)";
-            if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne $($ADUserPath)") {
-                Write-Host("Creating OU")
-                New-ADOrganizationalUnit -Name "$($User.ou)" -Path "$($ADPath)";
-                Write-Host("OU created: " + $ADUserPath);
+            if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$ADUserPath'") {
+                $ouParts = $User.ou -split ",(?=OU=)"
+                $currentPath = $ADPath;
+                foreach($ouPart in ($ouParts | Sort-Object -Descending)) {
+                    if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$currentPath'") {
+                        $ouName = $ouPart -replace "OU=", "";
+                        New-ADOrganizationalUnit -Name $ouName -Path $currentPath;
+                        $currentPath = "OU=$ouName,$currentPath";
+                    }
+
+                }
             }
             $UserParams = @{
                 SamAccountName      = $User.username
