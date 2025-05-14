@@ -8,19 +8,7 @@ function GetUsersFromCSV{
 
     foreach ($User in $ADUsers) {
         try {
-            $ADUserPath = "$($User.ou)$($ADPath)";
-            if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$ADUserPath'") {
-                $ouParts = $User.ou -split ",(?=OU=)"
-                $currentPath = $ADPath;
-                foreach($ouPart in ($ouParts | Sort-Object -Descending)) {
-                    if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$currentPath'") {
-                        $ouName = $ouPart -replace "OU=", "";
-                        New-ADOrganizationalUnit -Name $ouName -Path $currentPath;
-                        $currentPath = "OU=$ouName,$currentPath";
-                    }
-
-                }
-            }
+            CreateOU($ADPath,$User);
             $UserParams = @{
                 SamAccountName      = $User.username
                 UserprincipalName   = "$($User.username)@$UPN"
@@ -58,4 +46,23 @@ function GetUsersFromCSV{
         }
     }
 
+}
+function CreateOU {
+    param (
+        $ADPath,
+        $User
+    )
+    $ADUserPath = "$($User.ou)$($ADPath)";
+    if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$ADUserPath'") {
+        $ouParts = $User.ou -split ",(?=OU=)"
+        $currentPath = $ADPath;
+        foreach($ouPart in ($ouParts | Sort-Object -Descending)) {
+            if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$currentPath'") {
+                $ouName = $ouPart -replace "OU=", "";
+                New-ADOrganizationalUnit -Name $ouName -Path $currentPath;
+                $currentPath = "OU=$ouName,$currentPath";
+            }
+
+        }
+    }
 }
