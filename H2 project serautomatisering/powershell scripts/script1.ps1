@@ -45,7 +45,7 @@ function opg6
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser;
     Get-ExecutionPolicy -List
 }
-opg6;
+
 
 #opgave 7
 function opg7
@@ -82,4 +82,11 @@ function opg10 {
 function opg11
 {
 
+
+    for ($i = 1; $i -lt 30; $i++) {
+        Write-Host($i);
+    }
+
+
 }
+opg11;
