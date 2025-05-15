@@ -5,27 +5,46 @@ $session = New-PSSession -ComputerName "10.14.2.56" -Port 4335 -Credential $cred
 Invoke-Command -Session $session -ScriptBlock {
     function CreateOU {
         param (
-            $ADPath,
-            $User
+        [String] $User,
+            [String] $ADPath
         )
 
-        $ADUserPath = ",$($User) $($ADPath)";
-        Write-Host("started Creating OU: $ADUserPath") -ForegroundColor Green;
-        if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$ADUserPath'") {
-            $ouParts = $User -split ",";
-            $currentPath = $ADPath;
-            Write-Host("Current Path: $currentPath") -ForegroundColor Green;
-            Write-Host("OU Parts: $ouParts") -ForegroundColor Green;
-            foreach($ouPart in ($ouParts | Sort-Object -Descending)) {
-                if(Get-ADOrganizationalUnit -Filter "distinguishedName -ne '$currentPath'") {
-                    Write-Host("Creating OU: $ouPart") -ForegroundColor Green;
-                    $ouName = $ouPart -replace "OU=", "";
-                    New-ADOrganizationalUnit -Name $ouName -Path $currentPath;
-                    $currentPath = "OU=$ouName,$currentPath";
-                    Write-Host("OU created: $currentPath") -ForegroundColor Green;
-                }
-            }
+        # Construct the ADUserPath
+
+        $ADUserPath = "$User,$ADPath".Replace(" ", "")
+
+
+
+        if (Get-ADOrganizationalUnit -LDAPFilter "(distinguishedName=$ADUserPath)") {
+            Write-Host "OU already exists: $ADUserPath" -ForegroundColor Yellow
+            return
         }
+        $ouParts = $User -split ","
+        $currentPath = $ADPath
+        foreach ($ouPart in ($ouParts | Sort-Object -Descending)) {
+
+            Write-Host("Current OU part: $ouPart") -ForegroundColor Gray
+            Write-Host("Current Path: $currentPath") -ForegroundColor Gray
+            if (-not (Get-ADOrganizationalUnit -LDAPFilter "(distinguishedName=$ouPart,$currentPath)")) {
+                Write-Host("OU does not exist: $ouPart") -ForegroundColor DarkMagenta
+                $ouName = $ouPart -replace "OU=", ""
+                try {
+
+                    Write-Host("OU Name : $ouName") -ForegroundColor DarkMagenta
+                    New-ADOrganizationalUnit -Name $ouName -Path $currentPath
+                    Write-Host("OU created: $ouName") -ForegroundColor Green
+                }
+                catch {
+                    Write-Host("Failed to create OU: $ouName") -ForegroundColor Red
+                    Write-Host("Error: $_") -ForegroundColor Red
+                    return
+                }
+
+            }
+            $currentPath = "$ouPart,$currentPath"
+
+        }
+
     }
 
     function GetUsersFromCSV
@@ -40,11 +59,12 @@ Invoke-Command -Session $session -ScriptBlock {
         }
         $ADUsers = Import-Csv "C:\Users\Administrator\Downloads\testemployees1.CSV" -Delimiter ";"
         $UPN = "Markus.ninja"
-        $ADPath = "OU=Dystopian Tech,DC=Markus,DC=ninja";
-
+        $ADPath = "OU=DystopianTech,DC=Markus,DC=ninja";
         foreach ($User in $ADUsers) {
             try {
-                CreateOU($ADPath,$User.ou);
+
+                CreateOU -User $User.ou -ADPath $ADPath
+                $ADUserPath = "$($User.ou),$ADPath".Replace(" ", "")
                 $UserParams = @{
                     SamAccountName      = $User.username
                     UserprincipalName   = "$($User.username)@$UPN"
@@ -78,7 +98,12 @@ Invoke-Command -Session $session -ScriptBlock {
                 }
             }
             catch {
-                Write-Host "Failed to create user $($User.username) - $_" -ForegroundColor Red
+                Write-Host "Failed to create user $($User.username)" -ForegroundColor Red
+                Write-Host "Error: $_" -ForegroundColor Red
+            }
+            finally {
+                # Optional: Clean up or reset variables if needed
+                $UserParams = $null
             }
         }
     }
