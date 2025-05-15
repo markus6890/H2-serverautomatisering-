@@ -7,7 +7,6 @@ Invoke-Command -Session $session -ScriptBlock {
     {
         $backupPath = "C:\ADBackup"
         $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
-        $backupFile = "$backupPath\ADBackup_$timestamp.ldf"
         $logFile = "$backupPath\ADBackup_$timestamp.log"
         $domainName = Read-Host("Enter the domain name (e.g., example.com)")
         $domain = "DC=$($domainName -replace '\.', ',DC=')";
@@ -30,4 +29,4 @@ Invoke-Command -Session $session -ScriptBlock {
 
     }
     BackupAD;
-}
+}e
