@@ -5,7 +5,7 @@ Invoke-Command -Session $session -ScriptBlock {
 
     function BackupAD
     {
-        $backupPath = "C:\ADBackup"
+        $backupPath = "\\BackupServer.Markus.ninja\backups"
         $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
         $logFile = "$backupPath\ADBackup_$timestamp.log"
         $domainName = Read-Host("Enter the domain name (e.g., example.com)")
@@ -29,4 +29,4 @@ Invoke-Command -Session $session -ScriptBlock {
 
     }
     BackupAD;
-}e
+}
