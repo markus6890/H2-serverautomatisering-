@@ -149,5 +149,6 @@ $button.Add_Click({
     }
 })
 
-$form.Add_FormClosing({ [System.Environment]::Exit(0) })
+
 $form.ShowDialog()
+$form.Dispose()
