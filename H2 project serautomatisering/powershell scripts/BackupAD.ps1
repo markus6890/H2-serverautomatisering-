@@ -1,14 +1,16 @@
-$cred = Get-Credential
-$session = New-PSSession -ComputerName "10.14.2.56" -Port 4335 -Credential $cred -Authentication Default -UseSSL:$false
+$user = "Edelhardt\ADbackupuser"
+$password = ConvertTo-SecureString "Kode1234!" -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential($user, $password)
+$session = New-PSSession -ComputerName "172.16.1.2" -Credential $cred -Authentication Default -UseSSL:$false
 
 Invoke-Command -Session $session -ScriptBlock {
 
     function BackupAD
     {
-        $backupPath = "\\BackupServer.Markus.ninja\backups"
+        $backupPath = "\\Fil-srv\ADBackup"
         $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
         $logFile = "$backupPath\ADBackup_$timestamp.log"
-        $domainName = Read-Host("Enter the domain name (e.g., example.com)")
+        $domainName = "Edelhardts.no";
         $domain = "DC=$($domainName -replace '\.', ',DC=')";
         Write-Host("Domain: $domain") -ForegroundColor Green
 
