@@ -1,78 +1,138 @@
 
+#ALL COMMENTS IS FOR MY GROUP MEMBERS UNDERSTANDING
+#COPYRIGHT RIGHTS OF MARKUS HYGE DOMBROWSKI (NO CHAT GPT)
+#Creates Folders and security groups following AGDLP best practice
 
-    #ALL COMMENTS IS FOR MY GROUP MEMBERS UNDERSTANDING
-    #COPYRIGHT RIGHTS OF MARKUS HYGE DOMBROWSKI (NO CHAT GPT)
-    #Creates Folders and security group to the folders
-    $OUName = Read-Host "OU navn"
-    $ADPath = "OU=$OUName,DC=DOS,DC=space"
-    $FolderName = Read-Host "mappe navn"
-    $FolderPath = Read-Host "skriv sti SKAL SKRIVES(default sti: \\Filserver.DOS.space\File Share)"
-    $UserInputGroup = Read-Host "Domain type DL eller G"
+$OUName = Read-Host "OU navn (e.g., Finance)"
+$ADPath = "OU=$OUName,DC=DOS,DC=space"
+$FolderName = Read-Host "mappe navn"
+$FolderPath = Read-Host "skriv sti SKAL SKRIVES(default sti: \\Filserver.DOS.space\File Share)"
+$Domain = "DOS"
 
+# AGDLP: Only create Domain Local groups per folder
+# Admins should manually create Global groups per OU/Department once
 
-    #Checks what Grouptype that was choosen
-    $Grouptype = "DomainLocal"
-    $GT = "DL"
-    if($UserInputGroup -eq "G") {
-        $Grouptype = "Global"
-        $GT = "G"
+#Function creates Domain Local groups for this specific folder
+function Create-ADGroups {
+    param($AccessType, $AccessTypeFullName)
+
+    # Domain Local group name includes folder name (one per folder)
+    $DLGroupName = "$OUName-DL-$FolderName-$AccessType"
+
+    $ADobjects = Get-ADObject -SearchBase $ADPath -Filter "Name -eq '$DLGroupName'"
+    if($ADobjects -eq $null) {
+        New-ADGroup -Name "$DLGroupName" `
+        -SamAccountName "$DLGroupName" `
+        -GroupCategory Security `
+        -GroupScope DomainLocal `
+        -DisplayName "$FolderName $AccessTypeFullName access" `
+        -Path $ADPath `
+        -Description "Members have $AccessTypeFullName access to $FolderName folder"
+
+        Write-Host "Created Domain Local group: $DLGroupName" -ForegroundColor Green
+    } else {
+        Write-Host "Domain Local group already exists: $DLGroupName" -ForegroundColor Yellow
     }
-    $FullADGroupName = "$OUName-$GT-$FolderName"
 
-    #Function creates the ADGroups when called
-    function Create-ADGroups {
-        param($AccessType, $AccessTypeFullName)
+    return $DLGroupName
+}
 
-        $ADobjects = Get-adobject -SearchBase $ADPath  -Filter "Name -eq '$FullADGroupName-$AccessType'"
-        if($ADobjects -eq $null) {
-            New-ADGroup -Name "$FullADGroupName-$AccessType" `
-	    -SamAccountName "$FullADGroupName-$AccessType" `
-	    -GroupCategory Security `
-	    -GroupScope $Grouptype `
-	    -Displayname "$FolderName $AccessTypeFullName access" `
-	    -Path $ADPath `
-	-Description "Members of this group have $AccessTypeFullName access to $FolderName"
-        }
-    }
+# Create Domain Local groups for THIS folder
+$dlRWGroup = Create-ADGroups -AccessType "RW" -AccessTypeFullName "Read Write"
+$dlRGroup = Create-ADGroups -AccessType "R" -AccessTypeFullName "Read"
 
-    #Calls the function to create the 2 different rules
-    Create-ADGroups -AccessType "RW" -AccessTypeFullName "Read Write"
+# Check if Global groups exist (should be created once per OU)
+$globalRWGroup = "$OUName-G-RW"
+$globalRGroup = "$OUName-G-R"
 
-    Create-ADGroups -AccessType "R" -AccessTypeFullName "Read"
+$globalRWExists = Get-ADGroup -Filter "Name -eq '$globalRWGroup'" -SearchBase $ADPath -ErrorAction SilentlyContinue
+$globalRExists = Get-ADGroup -Filter "Name -eq '$globalRGroup'" -SearchBase $ADPath -ErrorAction SilentlyContinue
 
-    #Creates the folder
+# Create Global groups if they don't exist (only happens first time for this OU)
+if (-not $globalRWExists) {
+    New-ADGroup -Name $globalRWGroup `
+        -SamAccountName $globalRWGroup `
+        -GroupCategory Security `
+        -GroupScope Global `
+        -DisplayName "$OUName Read Write Users" `
+        -Path $ADPath `
+        -Description "Global group for all $OUName users with write access"
+    Write-Host "Created Global group: $globalRWGroup" -ForegroundColor Cyan
+} else {
+    Write-Host "Global group already exists: $globalRWGroup" -ForegroundColor Yellow
+}
+
+if (-not $globalRExists) {
+    New-ADGroup -Name $globalRGroup `
+        -SamAccountName $globalRGroup `
+        -GroupCategory Security `
+        -GroupScope Global `
+        -DisplayName "$OUName Read Only Users" `
+        -Path $ADPath `
+        -Description "Global group for all $OUName users with read-only access"
+    Write-Host "Created Global group: $globalRGroup" -ForegroundColor Cyan
+} else {
+    Write-Host "Global group already exists: $globalRGroup" -ForegroundColor Yellow
+}
+
+
+try {
+    Add-ADGroupMember -Identity $dlRWGroup -Members $globalRWGroup -ErrorAction Stop
+    Write-Host "Added $globalRWGroup to $dlRWGroup" -ForegroundColor Green
+} catch {
+    Write-Host "Could not add $globalRWGroup to $dlRWGroup (may already be member)" -ForegroundColor Yellow
+}
+
+try {
+    Add-ADGroupMember -Identity $dlRGroup -Members $globalRGroup -ErrorAction Stop
+    Write-Host "Added $globalRGroup to $dlRGroup" -ForegroundColor Green
+} catch {
+    Write-Host "Could not add $globalRGroup to $dlRGroup (may already be member)" -ForegroundColor Yellow
+}
+
+# Create the folder
+if (-not (Test-Path "$FolderPath\$FolderName")) {
     New-Item -Path $FolderPath -Name $FolderName -ItemType Directory
+    Write-Host "`nCreated folder: $FolderPath\$FolderName" -ForegroundColor Green
+} else {
+    Write-Host "`nFolder already exists: $FolderPath\$FolderName" -ForegroundColor Yellow
+}
 
-    #Gets the current list of permissions for the folder
-    $acl = Get-Acl -Path "$FolderPath\$FolderName"
+# Get current permissions
+$acl = Get-Acl -Path "$FolderPath\$FolderName"
 
-    #Gets the security groups we created
-    Get-adobject -SearchBase $ADPath  -ldapfilter {(objectclass=group)}
+# Disable inheritance
+$acl.SetAccessRuleProtection($True, $False)
 
-    #gets the diffent permissions the folder needs
-    $acl.SetAccessRuleProtection($True, $False)
+# Create permission rules
+$ruleAdministrators = New-Object `
+    System.Security.AccessControl.FileSystemAccessRule("Administrators","FullControl", "ContainerInherit, ObjectInherit", "None", "Allow")
 
-    $ruleAdministrators = New-Object `
-        System.Security.AccessControl.FileSystemAccessRule("Administrators","FullControl", "ContainerInherit, ObjectInherit", "None", "Allow")
+$ruleDomainAdmin = New-Object `
+    System.Security.AccessControl.FileSystemAccessRule("$Domain\Domain Admins","FullControl", "ContainerInherit, ObjectInherit", "None", "Allow")
 
-    $ruleDomainAdmin = New-Object `
-        System.Security.AccessControl.FileSystemAccessRule("$Domain\Domain Admins","FullControl", "ContainerInherit, ObjectInherit", "None", "Allow")
+# AGDLP: Domain Local groups get the actual permissions
+$ruleR = New-Object `
+    System.Security.AccessControl.FileSystemAccessRule("$Domain\$dlRGroup","ReadAndExecute", "ContainerInherit, ObjectInherit", "None", "Allow")
 
-    $ruleR = New-Object `
-        System.Security.AccessControl.FileSystemAccessRule("$Domain\$FullADGroupName-R","ReadAndExecute", "ContainerInherit, ObjectInherit", "None", "Allow")
+$ruleRW = New-Object `
+    System.Security.AccessControl.FileSystemAccessRule("$Domain\$dlRWGroup","Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
 
-    $ruleRW = New-Object `
-        System.Security.AccessControl.FileSystemAccessRule("$Domain\$FullADGroupName-RW","Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
+# Add all rules
+$rules = $ruleAdministrators,$ruleDomainAdmin,$ruleR,$ruleRW
 
-    #Adds the permissions to a list of permissions
-    $rules = $ruleAdministrators,$ruleDomainAdmin,$ruleR,$ruleRW
+foreach ($rule in $rules) {
+    $acl.AddAccessRule($rule)
+}
 
-    #Loops over all the perms in the list and adds them to the acl list
-    foreach ($rule in $rules)
-    {
-        $acl.AddAccessRule($rule)
-    }
-    #Adds the new permission list to the folder
-    $acl | Set-Acl -Path "$FolderPath\$FolderName"
+# Apply permissions
+$acl | Set-Acl -Path "$FolderPath\$FolderName"
 
-
+Write-Host "`nAGDLP configuration complete!" -ForegroundColor Green
+Write-Host "Summary:" -ForegroundColor Cyan
+Write-Host "- Global groups (shared across all $OUName folders): $globalRWGroup, $globalRGroup" -ForegroundColor White
+Write-Host "- Domain Local groups (specific to this folder): $dlRWGroup, $dlRGroup" -ForegroundColor White
+Write-Host "- Folder created: $FolderPath\$FolderName" -ForegroundColor White
+Write-Host "`nNext steps:" -ForegroundColor Cyan
+Write-Host "1. Add users to Global groups: $globalRWGroup or $globalRGroup" -ForegroundColor White
+Write-Host "2. Users in Global groups automatically get access to ALL $OUName folders through AGDLP" -ForegroundColor White
