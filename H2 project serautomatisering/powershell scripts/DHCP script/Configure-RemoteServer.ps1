@@ -88,16 +88,34 @@ function Configure-RemoteServer {
             if ($scopes) {
                 foreach ($s in $scopes) {
                     try {
-                        Add-DhcpServerv4Scope @{
-                            Name = $s.Name
-                            StartRange = $s.StartIP
-                            EndRange = $s.EndIP
-                            SubnetMask = $s.SubnetMask
-                            State = 'Active'
-                            LeaseDuration = (New-TimeSpan -Days [int]$s.LeaseDuration)
-                        } -ErrorAction Stop
-                        $scopeId = (Get-DhcpServerv4Scope | Where-Object Name -eq $scope.Name).ScopeId
-                        Set-DhcpServerv4OptionValue -ScopeId $scopeId -Router $scope.Gateway -DnsServer $scope.DnsServer -ErrorAction Stop
+
+                        $existingScope = Get-DhcpServerv4Scope -ErrorAction SilentlyContinue | Where-Object {
+                            $_.Name -eq $s.Name -or ($_.StartRange -eq $s.StartIP -and $_.EndRange -eq $s.EndIP)
+                        }
+
+                        if ($existingScope) {
+                            $log += "Scope '$($s.Name)' already exists (ScopeId: $($existingScope.ScopeId)). Skipping creation."
+                            continue
+                        }
+
+                        Add-DhcpServerv4Scope `
+                            -Name $s.Name `
+                            -StartRange $s.StartIP `
+                            -EndRange $s.EndIP `
+                            -SubnetMask $s.SubnetMask `
+                            -State 'Active' `
+                            -LeaseDuration (New-TimeSpan -Days ([int]$s.LeaseDuration)) `
+                            -ErrorAction Stop
+
+                        $scopeId = (Get-DhcpServerv4Scope | Where-Object Name -eq $s.Name).ScopeId
+
+                        Set-DhcpServerv4OptionValue -ScopeId $scopeId -Router $s.Gateway -ErrorAction Stop
+                        $log += "Set gateway for scope $($s.Name): $($s.Gateway)"
+
+                        $dnsArray = @($s.DnsServer)
+                        Set-DhcpServerv4OptionValue -ScopeId $scopeId -DnsServer $dnsArray -ErrorAction Stop
+                        $log += "Set DNS server for scope $($s.Name): $($s.DnsServer)"
+
                         if ($s.Exclusions -and $s.Exclusions.Count -gt 0) {
                             foreach ($excl in $s.Exclusions) {
                                 if($excl -contains '-') {

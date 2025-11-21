@@ -318,13 +318,13 @@ $ui.BtnAddScope.Add_Click({
         }
 
         $scope = @{
-            Name = $txtName.Text.Trim()
-            StartIP = $txtStart.Text.Trim()
-            EndIP = $txtEnd.Text.Trim()
-            SubnetMask = $txtMask.Text.Trim()
-            Gateway = $txtGateway.Text.Trim()
-            DnsServer = $txtDns.Text.Trim()
-            LeaseDuration = $txtLease.Text.Trim()
+            Name = $txtName.Text
+            StartIP = $txtStart.Text
+            EndIP = $txtEnd.Text
+            SubnetMask = $txtMask.Text
+            Gateway = $txtGateway.Text
+            DnsServer = $txtDns.Text
+            LeaseDuration = $txtLease.Text
             Exclusions = $state.Exclusions
         }
 
@@ -426,13 +426,13 @@ $ui.BtnEditScope.Add_Click({
         }
 
         $edited = @{
-            Name = $txtName.Text.Trim()
-            StartIP = $txtStart.Text.Trim()
-            EndIP = $txtEnd.Text.Trim()
-            SubnetMask = $txtMask.Text.Trim()
-            Gateway = $txtGateway.Text.Trim()
-            DnsServer = $txtDns.Text.Trim()
-            LeaseDuration = $txtLease.Text.Trim()
+            Name = $txtName.Text
+            StartIP = $txtStart.Text
+            EndIP = $txtEnd.Text
+            SubnetMask = $txtMask.Text
+            Gateway = $txtGateway.Text
+            DnsServer = $txtDns.Text
+            LeaseDuration = $txtLease.Text
             Exclusions = $state.Exclusions
         }
 
@@ -593,7 +593,8 @@ $ui.ButtonCreate.Add_Click({
     for ($i=0; $i -lt $ui.ListBoxDnsZones.Items.Count; $i++) { $dnsZones += $ui.ListBoxDnsZones.Items[$i] }
 
     # Use the actual scope objects (so Exclusions property is preserved)
-    $scopes = $scopesList.ToArray()
+    $scopes = $scopesList
+    Write-Host "scopelist " $scopes
 
     $dnsForwarder = $ui.TextDnsForwarder.Text
     $dnsSuffix = $ui.TextDnsSuffix.Text
