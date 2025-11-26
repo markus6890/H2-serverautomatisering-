@@ -11,13 +11,14 @@ function Configure-RemoteServer {
     try {
         $result = Invoke-Command -ComputerName $ServerIP -Credential $cred -ErrorAction Stop -ArgumentList ($DnsForwarder, $DnsSuffix, $Scopes, $DnsZones) -ScriptBlock {
             param($dnsForwarder, $dnsSuffix, $scopes, $dnsZones)
-
+            $needInstallDNS = $false
+            $needInstallDHCP = $true
             $log = @()
 
             # Ensure DNS and DHCP features installed
             try {
                 $dns = Get-WindowsFeature -Name DNS
-                if (-not $dns.Installed) {
+                if (-not $dns.Installed -and $needInstallDNS) {
                     Install-WindowsFeature -Name DNS -IncludeManagementTools -ErrorAction Stop
                     $log += "Installed DNS role."
                 } else { $log += "DNS already installed." }
@@ -25,7 +26,7 @@ function Configure-RemoteServer {
 
             try {
                 $dhcp = Get-WindowsFeature -Name DHCP
-                if (-not $dhcp.Installed) {
+                if (-not $dhcp.Installed -and $needInstallDHCP) {
                     Install-WindowsFeature -Name DHCP -IncludeManagementTools -ErrorAction Stop
                     $log += "Installed DHCP role."
                 } else { $log += "DHCP already installed." }
@@ -118,7 +119,7 @@ function Configure-RemoteServer {
 
                         if ($s.Exclusions -and $s.Exclusions.Count -gt 0) {
                             foreach ($excl in $s.Exclusions) {
-                                if($excl -contains '-') {
+                                if($excl -match '-') {
                                     $parts = $excl -split '-'
                                     $startExcl = $parts[0].Trim()
                                     $endExcl = $parts[1].Trim()

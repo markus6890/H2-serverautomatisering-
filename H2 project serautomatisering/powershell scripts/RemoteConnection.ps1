@@ -1,101 +1,157 @@
+
 $cred = Get-Credential
 $serverIP = Read-Host("Enter the server IP address")
-$session = New-PSSession -ComputerName $serverIP -Port 4335 -Credential $cred -Authentication Default -UseSSL:$false
+$session = New-PSSession -ComputerName $serverIP -Credential $cred -Authentication Default -UseSSL:$false
 
-Invoke-Command -Session $session -ScriptBlock {
+$csvPath = "C:\Users\FMI-C-OSIC80\Downloads\ad_users_regional_names.csv"
+if (-not (Test-Path -Path $csvPath)) {
+    Write-Host "CSV file not found on local machine: $csvPath" -ForegroundColor Red
+    exit
+}
+
+$ADUsers = Import-Csv $csvPath -Delimiter ";"
+Write-Host "Loaded $($ADUsers.Count) users from CSV" -ForegroundColor Green
+
+Invoke-Command -Session $session -ArgumentList (,$ADUsers) -ScriptBlock {
+    param($ADUsers)
+
+
     function CreateOU {
         param (
-        [String] $User,
+            [String] $OUPath,
             [String] $ADPath
         )
-        $ADUserPath = "$User,$ADPath".Replace(" ", "")
-
-
+        $ADUserPath = "$OUPath,$ADPath".Replace(" ", "")
 
         if (Get-ADOrganizationalUnit -LDAPFilter "(distinguishedName=$ADUserPath)") {
             Write-Host "OU already exists: $ADUserPath" -ForegroundColor Yellow
             return
         }
-        $ouParts = $User -split ","
+        $ouParts = $OUPath -split ","
         $currentPath = $ADPath
-        foreach ($ouPart in ($ouParts | Sort-Object -Descending)) {
 
-            #Write-Host("Current OU part: $ouPart") -ForegroundColor Gray
-            #Write-Host("Current Path: $currentPath") -ForegroundColor Gray
+        # Reverse the array to create parent OUs first (outermost to innermost)
+        [array]::Reverse($ouParts)
+
+        foreach ($ouPart in $ouParts) {
             if (-not (Get-ADOrganizationalUnit -LDAPFilter "(distinguishedName=$ouPart,$currentPath)")) {
-                #Write-Host("OU does not exist: $ouPart") -ForegroundColor DarkMagenta
                 $ouName = $ouPart -replace "OU=", ""
                 try {
-
-                    #Write-Host("OU Name : $ouName") -ForegroundColor DarkMagenta
                     New-ADOrganizationalUnit -Name $ouName -Path $currentPath
-                    #Write-Host("OU created: $ouName") -ForegroundColor Green
+                    Write-Host "Created OU: $ouName at $currentPath" -ForegroundColor Green
                 }
                 catch {
                     Write-Host("Failed to create OU: $ouName") -ForegroundColor Red
                     Write-Host("Error: $_") -ForegroundColor Red
                     return
                 }
-
             }
             $currentPath = "$ouPart,$currentPath"
-
         }
-
     }
 
-    function GetUsersFromCSV
-    {
-        Import-Module ActiveDirectory
-        if(Test-Path -Path "C:\Users\Administrator\Downloads\testemployees1.CSV") {
-            Write-Host "File exists" -ForegroundColor Green;
-        }
-        else {
-            Write-Host "File does not exist" -ForegroundColor Red;
-            return;
-        }
-        $ADUsers = Import-Csv "C:\Users\Administrator\Downloads\testemployees1.CSV" -Delimiter ";"
-        $UPN = "Markus.ninja"
-        $ADPath = "OU=DystopianTech,DC=Markus,DC=ninja";
-        foreach ($User in $ADUsers) {
-            try {
+    function ProcessUsers {
+        param($Users)
 
-                CreateOU -User $User.ou -ADPath $ADPath
-                $ADUserPath = "$($User.ou),$ADPath".Replace(" ", "")
-                $UserParams = @{
-                    SamAccountName      = $User.username
-                    UserprincipalName   = "$($User.username)@$UPN"
-                    Name                = "$($User.firstname) $($User.lastname)"
-                    GivenName           = $User.firstname
-                    Surname             = $User.lastname
-                    Initial             = $User.initials
-                    Enabled             = $true
-                    DisplayName         = "$($User.firstname) $($User.lastname)"
-                    Path                = $ADUserPath
-                    City                = $User.city
-                    PostalCode          = $User.zipcode
-                    Country             = $User.country
-                    Company             = $User.company
-                    State               = $User.state
-                    StreetAddress       = $User.streetaddress
-                    OfficePhone         = $User.telephone
-                    EmailAddress        = $User.email
-                    Title               = $User.jobtitle
-                    Department          = $User.department
-                    AccountPassword     = (ConvertTo-SecureString $User.password -AsPlainText -Force)
-                    ChangePasswordAtLogon = $true
+        Import-Module ActiveDirectory
+
+        foreach ($User in $Users) {
+            try {
+                # Extract the base domain from the Path column (everything after the first OU)
+                $pathParts = $User.Path -split ","
+                $ouParts = $pathParts | Where-Object { $_ -like "OU=*" }
+                $dcParts = $pathParts | Where-Object { $_ -like "DC=*" }
+                $ADPath = ($dcParts -join ",")
+                $ouPath = ($ouParts -join ",")
+
+                # Create OU structure if needed
+                if ($ouPath) {
+                    CreateOU -OUPath $ouPath -ADPath $ADPath
                 }
 
-                if (Get-ADUser -Filter "SamAccountName -eq '$($User.username)'") {
-                    Write-Host "A user with username $($User.username) already exists in Active Directory." -ForegroundColor Magenta;
+                # FIX: Convert country names to 2-letter ISO codes
+                $countryCode = $null
+                if ($User.Country) {
+                    # Map of common country names to ISO codes
+                    $countryMap = @{
+                        "Denmark" = "DK"
+                        "Sweden" = "SE"
+                        "Norway" = "NO"
+                        "Finland" = "FI"
+                        "Germany" = "DE"
+                        "United States" = "US"
+                        "United Kingdom" = "GB"
+                        "France" = "FR"
+                        "Spain" = "ES"
+                        "Italy" = "IT"
+                        "Netherlands" = "NL"
+                        "Belgium" = "BE"
+                        "Poland" = "PL"
+                    }
+                    
+                    # If already 2-letter code, use it
+                    if ($User.Country.Length -eq 2) {
+                        $countryCode = $User.Country.ToUpper()
+                    }
+                    # If it's a known country name, convert it
+                    elseif ($countryMap.ContainsKey($User.Country)) {
+                        $countryCode = $countryMap[$User.Country]
+                        Write-Host "  Converted country '$($User.Country)' to '$countryCode' for user $($User.SamAccountName)" -ForegroundColor Cyan
+                    }
+                    else {
+                        Write-Host "  WARNING: Unknown country '$($User.Country)' for user $($User.SamAccountName), skipping Country field" -ForegroundColor Yellow
+                        $countryCode = $null
+                    }
+                }
+
+                # Convert password string to SecureString
+                $securePassword = ConvertTo-SecureString $User.AccountPassword -AsPlainText -Force
+
+                # Convert ChangePasswordAtLogon string to boolean
+                $changePassword = [System.Convert]::ToBoolean($User.ChangePasswordAtLogon)
+
+                # Build user parameters using CSV column names directly
+                $UserParams = @{
+                    SamAccountName        = $User.SamAccountName
+                    UserPrincipalName     = $User.UserPrincipalName
+                    Name                  = $User.Name
+                    GivenName             = $User.GivenName
+                    Surname               = $User.Surname
+                    Enabled               = [System.Convert]::ToBoolean($User.Enabled)
+                    DisplayName           = $User.DisplayName
+                    Path                  = $User.Path
+                    AccountPassword       = $securePassword
+                    ChangePasswordAtLogon = $changePassword
+                }
+                
+                # Add optional fields only if they have valid values
+                if ($User.Initial -and $User.Initial.Length -le 6) { 
+                    $UserParams.Initials = $User.Initial 
+                }
+                if ($User.City) { $UserParams.City = $User.City }
+                if ($User.PostalCode -and $User.PostalCode.Length -le 40) { 
+                    $UserParams.PostalCode = $User.PostalCode 
+                }
+                if ($countryCode) { $UserParams.Country = $countryCode }
+                if ($User.Company) { $UserParams.Company = $User.Company }
+                if ($User.State) { $UserParams.State = $User.State }
+                if ($User.StreetAddress) { $UserParams.StreetAddress = $User.StreetAddress }
+                if ($User.OfficePhone) { $UserParams.OfficePhone = $User.OfficePhone }
+                if ($User.EmailAddress) { $UserParams.EmailAddress = $User.EmailAddress }
+                if ($User.Title) { $UserParams.Title = $User.Title }
+                if ($User.Department) { $UserParams.Department = $User.Department }
+
+                # Check if user already exists
+                if (Get-ADUser -Filter "SamAccountName -eq '$($User.SamAccountName)'") {
+                    Write-Host "User $($User.SamAccountName) already exists in Active Directory." -ForegroundColor Magenta
                 }
                 else {
                     New-ADUser @UserParams
-                    Write-Host "The user $($User.username) is created." -ForegroundColor Green
+                    Write-Host "User $($User.SamAccountName) created successfully." -ForegroundColor Green
                 }
             }
             catch {
-                Write-Host "Failed to create user $($User.username)" -ForegroundColor Red
+                Write-Host "`nFailed to create user $($User.SamAccountName)" -ForegroundColor Red
                 Write-Host "Error: $_" -ForegroundColor Red
             }
             finally {
@@ -104,6 +160,5 @@ Invoke-Command -Session $session -ScriptBlock {
         }
     }
 
-    GetUsersFromCSV
+    ProcessUsers -Users $ADUsers
 }
-
