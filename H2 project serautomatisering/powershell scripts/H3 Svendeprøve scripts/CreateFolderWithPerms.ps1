@@ -2,12 +2,13 @@
 #COPYRIGHT RIGHTS OF MARKUS HYGE DOMBROWSKI (NO CHAT GPT)
 #Creates Folders and security groups following AGDLP best practice
 
+$creddc = Get-Credential
 $cred = Get-Credential
 $dcIP = Read-Host("Enter the Domain Controller IP address")
 $fileServerIP = Read-Host("Enter the File Server IP address")
 
 # Create session to Domain Controller for AD operations
-$dcSession = New-PSSession -ComputerName $dcIP -Credential $cred -Authentication Default -UseSSL:$false
+$dcSession = New-PSSession -ComputerName $dcIP -Credential $creddc -Authentication Default -UseSSL:$false
 
 # Create session to File Server for folder operations
 $fileSession = New-PSSession -ComputerName $fileServerIP -Credential $cred -Authentication Default -UseSSL:$false
