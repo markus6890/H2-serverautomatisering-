@@ -3,7 +3,7 @@ $cred = Get-Credential
 $serverIP = Read-Host("Enter the server IP address")
 $session = New-PSSession -ComputerName $serverIP -Credential $cred -Authentication Default -UseSSL:$false
 
-$csvPath = "C:\Users\FMI-C-OSIC80\Downloads\ad_users_regional_names.csv"
+$csvPath = "C:\Users\<User>\Downloads\ad_users_regional_names.csv"
 if (-not (Test-Path -Path $csvPath)) {
     Write-Host "CSV file not found on local machine: $csvPath" -ForegroundColor Red
     exit

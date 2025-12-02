@@ -86,7 +86,5 @@ function opg11
     for ($i = 1; $i -lt 30; $i++) {
         Write-Host($i);
     }
-
-
 }
-opg5;
+opg11
