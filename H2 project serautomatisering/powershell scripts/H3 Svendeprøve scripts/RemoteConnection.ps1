@@ -53,6 +53,7 @@ Invoke-Command -Session $session -ArgumentList (,$ADUsers) -ScriptBlock {
     function ProcessUsers {
         param($Users)
 
+        #Importere ActiveDirectory lib
         Import-Module ActiveDirectory
 
         foreach ($User in $Users) {
