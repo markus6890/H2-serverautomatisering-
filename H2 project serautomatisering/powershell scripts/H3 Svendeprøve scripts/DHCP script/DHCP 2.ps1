@@ -56,6 +56,15 @@ function Format-ZoneDisplay($z) {
 function Show-ZoneEditor {
     param([PSCustomObject]$Zone)
 
+    function setUIBoxes {
+        param($class,$name,$network,$type,$repl,$dyn)
+        $cmbClass.SelectedItem = $class
+        $txtName.Text = $name
+        $txtNetwork.Text = $network
+        $cmbType.SelectedItem = $type
+        $cmbRepl.SelectedItem = $repl
+        $cmbDyn.SelectedItem = $dyn
+    }
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
     $form = New-Object System.Windows.Forms.Form
     $form.Text = if ($Zone) { "Edit DNS Zone" } else { "Add DNS Zone" }
@@ -463,83 +472,7 @@ $ui.BtnRemoveScope.Add_Click({
 })
 # Placeholder functions (paste your real remote logic here)
 # powershell
-function Get-RemoteInstallStatus {
-    param($ServerIP, $Username, $Password)
-    # build credential
-    $secure = ConvertTo-SecureString $Password -AsPlainText -Force
-    $cred = New-Object System.Management.Automation.PSCredential($Username, $secure)
 
-    if (-not (Test-Connection -ComputerName $ServerIP -Count 1 -Quiet)) {
-        return @{
-            DnsInstalled = $false
-            DhcpInstalled = $false
-            DnsStatus = $null
-            DhcpStatus = $null
-            DnsZoneCount = 0
-            DhcpScopeCount = 0
-            DhcpAuthorized = $false
-            Message = "Host unreachable (ICMP failed). Check network/hostname."
-        }
-    }
-
-    try {
-        $res = Invoke-Command -ComputerName $ServerIP -Credential $cred -ErrorAction Stop -ScriptBlock {
-            # On remote: check features and basic objects
-            $dnsFeature = Get-WindowsFeature -Name DNS -ErrorAction SilentlyContinue
-            $dhcpFeature = Get-WindowsFeature -Name DHCP -ErrorAction SilentlyContinue
-
-            $zones = @()
-            if (Get-Command -Name Get-DnsServerZone -ErrorAction SilentlyContinue) {
-                $zones = (Get-DnsServerZone -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty ZoneName
-            }
-
-            $scopes = @()
-            if (Get-Command -Name Get-DhcpServerv4Scope -ErrorAction SilentlyContinue) {
-                $scopes = (Get-DhcpServerv4Scope -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty Name
-            }
-
-            $authorized = $false
-            if (Get-Command -Name Get-DhcpServerInDC -ErrorAction SilentlyContinue) {
-                try { $authorized = (Get-DhcpServerInDC -ErrorAction SilentlyContinue) -ne $null } catch { $authorized = $false }
-            }
-
-            return @{
-                DnsInstalled = ($dnsFeature -and $dnsFeature.Installed)
-                DhcpInstalled = ($dhcpFeature -and $dhcpFeature.Installed)
-                DnsStatus = if ($dnsFeature) { $dnsFeature.DisplayName } else { $null }
-                DhcpStatus = if ($dhcpFeature) { $dhcpFeature.DisplayName } else { $null }
-                DnsZoneCount = $zones.Count
-                DhcpScopeCount = $scopes.Count
-                DhcpAuthorized = $authorized
-                Message = "OK"
-            }
-        }
-
-        # remote returns hashtable-like object — convert to hashtable if needed
-        return @{
-            DnsInstalled = $res.DnsInstalled
-            DhcpInstalled = $res.DhcpInstalled
-            DnsStatus = $res.DnsStatus
-            DhcpStatus = $res.DhcpStatus
-            DnsZoneCount = $res.DnsZoneCount
-            DhcpScopeCount = $res.DhcpScopeCount
-            DhcpAuthorized = $res.DhcpAuthorized
-            Message = "Connected and queried successfully."
-        }
-    }
-    catch {
-        return @{
-            DnsInstalled = $false
-            DhcpInstalled = $false
-            DnsStatus = $null
-            DhcpStatus = $null
-            DnsZoneCount = 0
-            DhcpScopeCount = 0
-            DhcpAuthorized = $false
-            Message = "Invoke-Command failed: $($_.Exception.Message)"
-        }
-    }
-}
 
 
 

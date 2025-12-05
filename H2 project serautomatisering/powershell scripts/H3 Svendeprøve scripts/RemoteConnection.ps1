@@ -73,7 +73,6 @@ Invoke-Command -Session $session -ArgumentList (,$ADUsers) -ScriptBlock {
                 # FIX: Convert country names to 2-letter ISO codes
                 $countryCode = $null
                 if ($User.Country) {
-                    # Map of common country names to ISO codes
                     $countryMap = @{
                         "Denmark" = "DK"
                         "Sweden" = "SE"
@@ -89,12 +88,11 @@ Invoke-Command -Session $session -ArgumentList (,$ADUsers) -ScriptBlock {
                         "Belgium" = "BE"
                         "Poland" = "PL"
                     }
-                    
-                    # If already 2-letter code, use it
+
                     if ($User.Country.Length -eq 2) {
                         $countryCode = $User.Country.ToUpper()
                     }
-                    # If it's a known country name, convert it
+
                     elseif ($countryMap.ContainsKey($User.Country)) {
                         $countryCode = $countryMap[$User.Country]
                         Write-Host "  Converted country '$($User.Country)' to '$countryCode' for user $($User.SamAccountName)" -ForegroundColor Cyan

@@ -1,15 +1,4 @@
 
-function get_data {
-    Import-Module PSSQLite
-
-    # SQL Statement
-    $query = "SELECT * FROM Users;"
-
-    $results = Invoke-SqliteQuery -Query $query -DataSource "C:\Users\FMI-C-OSIC80\IdeaProjects\H2-serverautomatisering-\H2 project serautomatisering\powershell scripts\Db.sqlite3"
-
-    return $results
-}
-
 function create_database {
     Import-Module PSSQLite
 
@@ -27,9 +16,7 @@ CREATE TABLE Users (
 
     Write-Host "SQLite table created!"
 
-
 }
-
 function insert_data
 {
     Import-Module PSSQLite
@@ -45,7 +32,21 @@ INSERT INTO Users (Name, Email, Age) VALUES
     Write-Host "Data inserted into SQLite table!"
 
 }
-#insert_data
-get_data
+
+function get_data {
+    Import-Module PSSQLite
+
+    # SQL Statement
+    $query = "SELECT * FROM Users;"
+
+    $results = Invoke-SqliteQuery -Query $query -DataSource "C:\Users\FMI-C-OSIC80\IdeaProjects\H2-serverautomatisering-\H2 project serautomatisering\powershell scripts\Db.sqlite3"
+
+    return $results
+}
+
+
+
+
+
 
 
