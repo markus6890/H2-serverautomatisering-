@@ -30,7 +30,6 @@ Invoke-Command -Session $session -ArgumentList (,$ADUsers) -ScriptBlock {
         $ouParts = $OUPath -split ","
         $currentPath = $ADPath
 
-        # Reverse the array to create parent OUs first (outermost to innermost)
         [array]::Reverse($ouParts)
 
         foreach ($ouPart in $ouParts) {
@@ -70,7 +69,6 @@ Invoke-Command -Session $session -ArgumentList (,$ADUsers) -ScriptBlock {
                     CreateOU -OUPath $ouPath -ADPath $ADPath
                 }
 
-                # FIX: Convert country names to 2-letter ISO codes
                 $countryCode = $null
                 if ($User.Country) {
                     $countryMap = @{

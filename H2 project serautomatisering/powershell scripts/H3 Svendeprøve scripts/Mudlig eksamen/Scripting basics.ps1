@@ -26,7 +26,27 @@ function ifStatement {
         Write-Host "$number is less than 5"
     }
 
+    #   -gt greater than
+    #   -igt greater than, case-insensitive
+    #   -cgt greater than, case-sensitive
+    #   -ge greater than or equal
+    #   -ige greater than or equal, case-insensitive
+    #   -cge greater than or equal, case-sensitive
+    #   -lt less than
+    #   -ilt less than, case-insensitive
+    #   -clt less than, case-sensitive
+    #   -le less than or equal
+    #   -ile less than or equal, case-insensitive
+    #   -cle less than or equal, case-sensitive
+    #   -eq equal
+    #   -ieq equal, case-insensitive
+    #   -ceq equal, case-sensitive
+    #   -ne not equal
+    #   -ine not equal, case-insensitive
+    #   -cne not equal, case-sensitive
+
 }
+
 
 function doLoopExample {
 
@@ -49,5 +69,13 @@ function forloopExample {
 
     for ($i = 1; $i -le 5; $i++) {
         Write-Host "Iteration $i"
+    }
+}
+function foreachLoopExample {
+
+    $items = @("apple", "banana", "cherry")
+
+    foreach ($item in $items) {
+        Write-Host "Item: $item"
     }
 }

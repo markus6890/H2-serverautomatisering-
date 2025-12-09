@@ -2,7 +2,7 @@
 $url = "https://jsonplaceholder.typicode.com/users"
 
 # Send GET request
-$response = Invoke-RestMethod -Method GET -Uri $url
+$response = Invoke-RestMethod -Method Get -Uri $url
 
 # Vis data
 $response
